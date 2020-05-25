@@ -60,7 +60,7 @@ from .metrics import Seq2SeqSparseCategoricalAccuracy
 
 # utils
 from .utils.checkpoint import Checkpoint
-from .utils.learning_rate import WarmUpLearningSchedule, WarmUpAdam
+from .utils.learning_rate import WarmUpLearningSchedule, WarmUpAdam, WarmUpAdamPerLayer
 from .utils.learning_rate import (
     ExponentialDecayLearningRateSchedule,
     ExponentialDecayAdam,
