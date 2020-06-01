@@ -38,6 +38,7 @@ class BaseSolver(tf.keras.Model):
     default_config = {
         "clip_norm": 100.0,
         "log_interval": 10,
+        "dynamic_batch_size_inputlen":None,
         "enable_tf_function": True
     }
     def __init__(self, model, optimizer, sample_signature, config=None, **kwargs):
@@ -156,22 +157,41 @@ class HorovodSolver(BaseSolver):
         if self.hparams.enable_tf_function:
             logging.info("please be patient, enable tf.function, it takes time ...")
             train_step = tf.function(train_step, input_signature=self.sample_signature)
+        global_step = 0
         for batch, samples in enumerate(dataset.take(total_batches)):
             # train 1 step
-            samples = self.model.prepare_samples(samples)
-            loss, metrics = train_step(samples)
-            # Horovod: broadcast initial variable states from rank 0 to all other processes.
-            # This is necessary to ensure consistent initialization of all workers when
-            # training is started with random weights or restored from a checkpoint.
-            #
-            # Note: broadcast should be done after the first gradient step to ensure optimizer
-            # initialization.
-            if batch == 0:
-                hvd.broadcast_variables(self.model.trainable_variables, root_rank=0)
-                hvd.broadcast_variables(self.optimizer.variables(), root_rank=0)
-            if batch % self.hparams.log_interval == 0 and hvd.local_rank() == 0:
-                logging.info(self.metric_checker(loss, metrics))
-                self.model.reset_metrics()
+            batch_size = tf.shape(samples['input'])[0]
+            time_length = tf.shape(samples['input'])[1]
+            factor = 1
+            if self.hparams.dynamic_batch_size_inputlen is not None:
+                factor = time_length // self.hparams.dynamic_batch_size_inputlen + 1
+                if factor !=1 and factor % 2 == 1:
+                    factor += 1
+            mini_batch_size = batch_size // factor
+            mini_step = 0
+            for i in range(factor):
+                mini_samples = {
+                    "input": samples["input"][mini_step:mini_step + mini_batch_size],
+                    "output": samples["output"][mini_step:mini_step + mini_batch_size],
+                    "input_length": samples["input_length"][mini_step:mini_step + mini_batch_size],
+                    "output_length": samples["output_length"][mini_step:mini_step + mini_batch_size]
+                }
+                mini_step += mini_batch_size
+                mini_samples = self.model.prepare_samples(mini_samples)
+                loss, metrics = train_step(mini_samples)
+                # Horovod: broadcast initial variable states from rank 0 to all other processes.
+                # This is necessary to ensure consistent initialization of all workers when
+                # training is started with random weights or restored from a checkpoint.
+                #
+                # Note: broadcast should be done after the first gradient step to ensure optimizer
+                # initialization.
+                if global_step == 0:
+                    hvd.broadcast_variables(self.model.trainable_variables, root_rank=0)
+                    hvd.broadcast_variables(self.optimizer.variables(), root_rank=0)
+                global_step += 1
+                if global_step % self.hparams.log_interval == 0 and hvd.rank() == 0:
+                    logging.info(self.metric_checker(loss, metrics))
+                    self.model.reset_metrics()
 
 
 class DecoderSolver(BaseSolver):
