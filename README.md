@@ -7,6 +7,8 @@ Our vision is to empower both industrial application and academic research on en
 
 All of our models are implemented in Tensorflow>=2.0.0.
 
+P.S. For code related to paper **A Further Study of Unsupervised Pre-training for Transformer Based Speech Recognition**, the code for **layer-wise discriminative training** can be found [here](https://github.com/athena-team/athena/blob/mpc_improvement/athena/utils/learning_rate.py), **uni-directional Transformer** can be found [here](https://github.com/athena-team/athena/blob/mpc_improvement/athena/layers/attention.py), and the code for **MPC-APC joint training** can be found [here](https://github.com/athena-team/athena/blob/mpc_improvement/athena/models/apc.py).
+
 ## 1) Table of Contents
 
 - [Athena](#athena)
