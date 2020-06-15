@@ -22,7 +22,8 @@
     "dff":1280,
     "rate":0.1,
     "chunk_size":1,
-    "keep_probability":0.8
+    "keep_probability":0.8,
+    "mpc_weight":0.5
   },
 
   "optimizer": "warmup_adam",

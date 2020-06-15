@@ -23,7 +23,7 @@ from .base import BaseModel
 from ..utils.hparam import register_and_parse_hparams
 from ..layers.commons import PositionalEncoding
 from ..layers.transformer import TransformerEncoder, TransformerEncoderLayer
-from ..loss import APCLoss
+from ..loss import APCLoss, MPCLoss
 
 
 class AutoregressivePredictCoding(BaseModel):
@@ -48,6 +48,7 @@ class AutoregressivePredictCoding(BaseModel):
         "rate": 0.1,
         "chunk_size": 1,
         "keep_probability": 0.8,
+        "mpc_weight": 0.5,
         "input_dropout_rate": 0.0
     }
 
@@ -63,7 +64,7 @@ class AutoregressivePredictCoding(BaseModel):
         _, self.dim, self.num_channels = data_descriptions.sample_shape["input"].as_list()
         self.apc_loss_function = APCLoss()
         self.metric = tf.keras.metrics.Mean(name="AverageLoss")
-
+        
         num_filters = self.hparams.num_filters
         d_model = self.hparams.d_model
         layers = tf.keras.layers
@@ -116,6 +117,11 @@ class AutoregressivePredictCoding(BaseModel):
         self.final_layer = layers.Dense(self.num_class, input_shape=(d_model,))
         self.randomizer = tf.random_uniform_initializer(0, 1)
 
+        if self.hparams.mpc_weight != 0:
+            self.mpc_loss_function = MPCLoss()
+            self.mpc_samples = {}
+            self.mpc_final_layer = layers.Dense(self.num_class, input_shape=(d_model,))
+
     def call(self, samples, training: bool = None):
         """ used for training
         Args:
@@ -130,6 +136,11 @@ class AutoregressivePredictCoding(BaseModel):
         x = self.x_net(x0, training=training)
         x = self.encoder(x, None, training=training, unidirectional=True)
         logits = self.final_layer(x, training=training)
+        if self.hparams.mpc_weight != 0:
+            x0_mpc = tf.nn.dropout(self.mpc_samples["input"], self.hparams.input_dropout_rate)
+            x_mpc = self.x_net(x0_mpc, training=training)
+            x_mpc = self.encoder(x_mpc, None, training=training, unidirectional=False)
+            self.mpc_logits = self.mpc_final_layer(x_mpc, training=training)
 
         return logits
 
@@ -143,6 +154,9 @@ class AutoregressivePredictCoding(BaseModel):
 
         logit_length = self.compute_logit_length(samples)
         loss = self.apc_loss_function(logits, samples, logit_length)
+        if self.hparams.mpc_weight != 0:
+            extra_loss = self.mpc_loss_function(self.mpc_logits, self.mpc_samples, logit_length)
+            loss = (1 - self.hparams.mpc_weight) * loss + self.hparams.mpc_weight * extra_loss
         self.metric.update_state(loss)
         metrics = {self.metric.name: self.metric.result()}
         return loss, metrics
@@ -154,24 +168,71 @@ class AutoregressivePredictCoding(BaseModel):
         logit_length = tf.cast(logit_length, tf.int32)
         return logit_length
 
+    def generate_mpc_mask(self, input_data):
+        """ generate mask for pretraining
+        Args:
+            acoustic features: i.e F-bank
+        Return:
+            mask tensor
+        """
+        dtype = input_data.dtype
+        chunk_size = self.hparams.chunk_size * self.downsample_scale
+        batch, seq_len, dim, num_channels = input_data.get_shape().as_list()
+        if (1 - self.hparams.keep_probability) * seq_len <= chunk_size:
+            chunk_size = self.downsample_scale
+        num_chunk = tf.cast(
+            tf.math.ceil(
+                tf.divide(tf.cast(seq_len, tf.float32), tf.cast(chunk_size, tf.float32))
+            ),
+            tf.int32,
+        )
+
+        # generate mask with shape [batch, num_chunk]: 1.0 for keep, 0.0 for masked
+        ones = tf.ones([batch, num_chunk], dtype=dtype)
+        zeros = tf.zeros([batch, num_chunk], dtype=dtype)
+        probability = ones * self.hparams.keep_probability
+        random = self.randomizer([batch, num_chunk], dtype=dtype)
+        mask = tf.where(tf.less(random, probability), ones, zeros)
+
+        # change the mask for [batch, seq_len]
+        mask = tf.tile(mask[:, :, tf.newaxis], [1, 1, chunk_size])
+        mask = tf.reshape(mask, [batch, -1])[:, :seq_len]
+
+        # change the mask into masks with the shape [batch, seq_len, dim, num_channels]
+        masks = tf.tile(mask[:, :, tf.newaxis, tf.newaxis], [1, 1, dim, num_channels])
+        return masks    
+
     def prepare_samples(self, samples):
         """ for special data prepare
         carefully: do not change the shape of samples
         """
-        apc_data = samples["input"]
-
+        input_data = samples["input"]
         seq_len = (
-            tf.math.floordiv(tf.shape(apc_data)[1], self.downsample_scale)
+            tf.math.floordiv(tf.shape(input_data)[1], self.downsample_scale)
             * self.downsample_scale
         )
-        apc_data = apc_data[:, :seq_len, :, :]
-        batch_size, seq_len, dim, num_channels = tf.shape(apc_data)
+        input_length = samples["input_length"]
+        max_input_length = tf.ones_like(input_length) * seq_len
+        
+        input_data = input_data[:, :seq_len, :, :]
+        batch_size, seq_len, dim, num_channels = tf.shape(input_data)
         zeros = tf.zeros([batch_size, 5, dim, num_channels])
-        apc_out = tf.concat([apc_data[:, 5:, :, :], zeros], 1)
+        apc_out = tf.concat([input_data[:, 5:, :, :], zeros], 1)
         apc_output_length = samples["input_length"] - 5
-        samples["input"] = apc_data
+        samples["input"] = input_data
         samples["input_length"] = samples["input_length"]
-        samples["output"] = tf.squeeze(apc_out,-1)
+        samples["output"] = tf.squeeze(apc_out, -1)
         samples["output_length"] = apc_output_length
+
+        if self.hparams.mpc_weight != 0:
+
+            self.mpc_samples["input"] = input_data * self.generate_mpc_mask(input_data)
+            self.mpc_samples["output"] = tf.reshape(input_data, [batch_size, seq_len, dim * num_channels])
+            self.mpc_samples["input_length"] = tf.where(
+                tf.less(input_length, max_input_length),
+                input_length,
+                max_input_length
+            )
+            self.mpc_samples["output_length"] = samples["input_length"]
 
         return samples
