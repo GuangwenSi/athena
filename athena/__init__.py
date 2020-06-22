@@ -22,6 +22,7 @@ from .data import SpeechDatasetKaldiIOBuilder
 from .data import LanguageDatasetBuilder
 from .data import FeatureNormalizer
 from .data.text_featurizer import TextFeaturizer
+from .data import SpeakerEmbeddingSoftmaxDatasetBuilder, SpeakerEmbeddingTripletDatasetBuilder
 
 # layers
 from .layers.functional import make_positional_encoding
@@ -49,6 +50,7 @@ from .models.deep_speech import DeepSpeechModel
 from .models.mtl_seq2seq import MtlTransformerCtc
 from .models.rnn_lm import RNNLM
 from .models.translate_transformer import NeuralTranslateTransformer
+from .models.deep_speaker import DeepSpeakerSoftmax, DeepSpeakerTriplet
 
 # solver & loss & accuracy
 from .solver import BaseSolver

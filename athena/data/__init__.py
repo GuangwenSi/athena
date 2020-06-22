@@ -22,3 +22,4 @@ from .datasets.speech_set_kaldiio import SpeechDatasetKaldiIOBuilder
 from .datasets.language_set import LanguageDatasetBuilder
 from .feature_normalizer import FeatureNormalizer
 from .text_featurizer import TextFeaturizer, SentencePieceFeaturizer
+from .datasets.speaker_embedding_set import SpeakerEmbeddingSoftmaxDatasetBuilder, SpeakerEmbeddingTripletDatasetBuilder

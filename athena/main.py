@@ -29,6 +29,8 @@ SUPPORTED_DATASET_BUILDER = {
     "speech_dataset": SpeechDatasetBuilder,
     "speech_dataset_kaldiio": SpeechDatasetKaldiIOBuilder,
     "language_dataset": LanguageDatasetBuilder,
+    "deep_speaker_softmax_dataset": SpeakerEmbeddingSoftmaxDatasetBuilder,
+    "deep_speaker_triplet_dataset": SpeakerEmbeddingTripletDatasetBuilder,
 }
 
 SUPPORTED_MODEL = {
@@ -39,6 +41,8 @@ SUPPORTED_MODEL = {
     "mpc": MaskedPredictCoding,
     "rnnlm": RNNLM,
     "translate_transformer": NeuralTranslateTransformer,
+    "deep_speaker_softmax":DeepSpeakerSoftmax,
+    "deep_speaker_triplet":DeepSpeakerTriplet
 }
 
 SUPPORTED_OPTIMIZER = {
