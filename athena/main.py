@@ -129,7 +129,7 @@ def train(jsonfile, Solver, rank_size=1, rank=0):
 
     # for cmvn
     trainset_builder = SUPPORTED_DATASET_BUILDER[p.dataset_builder](p.trainset_config)
-    trainset_builder.compute_cmvn_if_necessary(rank == 0)
+    # trainset_builder.compute_cmvn_if_necessary(rank == 0)
     trainset_builder.shard(rank_size, rank)
 
     # train

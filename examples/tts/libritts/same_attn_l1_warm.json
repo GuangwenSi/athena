@@ -12,7 +12,7 @@
     "enable_tf_function":true
   },
 
-  "model":"speech_tacotron2",
+  "model":"tacotron2",
   "num_classes": null,
   "pretrained_model": null,
   "model_config":{

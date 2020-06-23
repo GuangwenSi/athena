@@ -24,8 +24,8 @@ import tensorflow as tf
 from .base import BaseModel
 from ..utils.hparam import register_and_parse_hparams
 from ..loss import Tacotron2Loss
-from ..layers.commons import ZoneOutCell
-from ..layers.attention import LocationAttention
+from ..layers.commons import ZoneOutCell, collapse4d
+from ..layers.attention import LocationAttention, MultiHeadAttention
 
 class Tacotron2(BaseModel):
     """
