@@ -18,6 +18,7 @@
 
 import os
 from absl import logging
+import numpy as np
 import tensorflow as tf
 from athena.transform import AudioFeaturizer
 from ...utils.hparam import register_and_parse_hparams
@@ -45,7 +46,7 @@ class SpeechSynthesisDatasetBuilder(BaseDatasetBuilder):
              "input_length": tf.TensorShape([1]),
              "output_length": tf.TensorShape([1]),
              "output": tf.TensorShape([None, dimension]),
-             "speaker": tf.TensorShape([1])}
+             "speaker": tf.TensorShape([None])}
     """
     default_config = {
         "audio_config": {"type": "Fbank"},
@@ -53,7 +54,7 @@ class SpeechSynthesisDatasetBuilder(BaseDatasetBuilder):
         "cmvn_file": None,
         "remove_unk": True,
         "input_length_range": [1, 10000],
-        "output_length_range": [20, 50000],
+        "output_length_range": [20, 12000],
         "data_csv": None,
         "num_cmvn_workers":1
     }
@@ -100,6 +101,7 @@ class SpeechSynthesisDatasetBuilder(BaseDatasetBuilder):
             self.speakers.append("global")
         else:
             for _, _, _, speaker in self.entries:
+                speaker = speaker.split('/')[-1].split('_')[0]
                 if speaker not in self.speakers:
                     self.speakers.append(speaker)
 
@@ -126,19 +128,20 @@ class SpeechSynthesisDatasetBuilder(BaseDatasetBuilder):
     def __getitem__(self, index):
         audio_data, _, transcripts, speaker = self.entries[index]
         audio_feat = self.audio_featurizer(audio_data)
-        audio_feat = self.feature_normalizer(audio_feat, speaker)
+        # audio_feat = self.feature_normalizer(audio_feat, speaker)
         audio_feat_length = audio_feat.shape[0]
         audio_feat = tf.reshape(audio_feat, [audio_feat_length, -1])
 
         text = self.text_featurizer.encode(transcripts)
         text.append(self.text_featurizer.model.eos_index)
         text_length = len(text)
+        speaker_embedding = np.load(speaker).squeeze(0)
         return {
             "input": text,
             "input_length": text_length,
             "output_length": audio_feat_length,
             "output": audio_feat,
-            "speaker": self.speakers_dict[speaker]
+            "speaker": speaker_embedding
         }
 
     def __len__(self):
@@ -172,7 +175,7 @@ class SpeechSynthesisDatasetBuilder(BaseDatasetBuilder):
             "input_length": tf.int32,
             "output_length": tf.int32,
             "output": tf.float32,
-            "speaker": tf.int32
+            "speaker": tf.float32
         }
 
     @property
@@ -183,7 +186,7 @@ class SpeechSynthesisDatasetBuilder(BaseDatasetBuilder):
             "input_length": tf.TensorShape([]),
             "output_length": tf.TensorShape([]),
             "output": tf.TensorShape([None, feature_dim]),
-            "speaker": tf.TensorShape([])
+            "speaker": tf.TensorShape([None])
         }
 
     @property
@@ -195,7 +198,7 @@ class SpeechSynthesisDatasetBuilder(BaseDatasetBuilder):
                 "input_length": tf.TensorSpec(shape=(None), dtype=tf.int32),
                 "output_length": tf.TensorSpec(shape=(None), dtype=tf.int32),
                 "output": tf.TensorSpec(shape=(None, None, feature_dim), dtype=tf.float32),
-                "speaker": tf.TensorSpec(shape=(None), dtype=tf.int32)
+                "speaker": tf.TensorSpec(shape=(None, None), dtype=tf.float32)
             },
         )
 

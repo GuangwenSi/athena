@@ -1,0 +1,88 @@
+{
+  "batch_size":16,
+  "num_epochs":500,
+  "sorta_epoch":1,
+  "ckpt":"examples/tts/libritts/ckpts/same/",
+  "summary_dir":"examples/tts/libritts/ckpts/same/event",
+
+  "solver_gpu":[1],
+  "solver_config":{
+    "clip_norm":1,
+    "log_interval":10,
+    "enable_tf_function":true
+  },
+
+  "model":"speech_tacotron2",
+  "num_classes": null,
+  "pretrained_model": null,
+  "model_config":{
+    "eunits": 512,
+    "e_convlayers": 3,
+    "ekernels": 5,
+    "e_rnnlayers": 1,
+
+    "zoneout_rate": 0.1,
+    "dropout_rate": 0.5,
+
+    "dlayers": 2,
+    "dunits": 1024,
+
+    "prenet_layers": 2,
+    "prenet_units": 256,
+
+    "postnet_layers": 5,
+    "postnet_kernel": 5,
+    "postnet_filters": 512,
+
+    "att_dim": 128,
+    "att_chans": 32,
+    "att_filters": 15,
+
+    "guided_attn_weight": 0.4,
+    "regularization_weight": 0.0,
+    "l1_loss_weight": 1.0,
+    "batch_norm_position": "after",
+    "mask_decoder": false,
+
+    "reduction_factor": 1,
+    "clip_outputs": false,
+    "clip_lower_bound_decay": 0.1,
+    "clip_max_value": 4
+  },
+
+  "decode_config":{
+    "model_avg_num": 1,
+    "gl_iters": 64,
+    "output_directory": "wav_test"
+  },
+
+  "optimizer":"warmup_adam",
+  "optimizer_config":{
+    "d_model":512,
+    "warmup_steps":8000,
+    "k":1.0
+  },
+
+
+  "dataset_builder": "speech_systhesis_dataset",
+  "num_data_threads": 1,
+  "trainset_config":{
+    "data_csv": "/nfs/cold_project/jiangdongwei/train.csv",
+    "audio_config":{"type":"Fbank", "filterbank_channel_count":80, "window_length": 0.08534, "frame_length": 0.0125, "upper_frequency_limit": 7600, "lower_frequency_limit": 80},
+    "text_config": {"type":"eng_vocab", "model":"examples/tts/libritts/vocab"},
+    "input_length_range":[10, 8000],
+    "output_length_range":[20, 8000]
+  },
+  "devset_config":{
+    "data_csv": "/nfs/cold_project/jiangdongwei/dev.csv",
+    "audio_config":{"type":"Fbank", "filterbank_channel_count":80, "window_length": 0.08534, "frame_length": 0.0125, "upper_frequency_limit": 7600, "lower_frequency_limit": 80},
+    "text_config": {"type":"eng_vocab", "model":"examples/tts/libritts/vocab"},
+    "input_length_range":[10, 8000],
+    "output_length_range":[20, 8000]
+  },
+  "testset_config":{
+    "data_csv": "/nfs/cold_project/jiangdongwei/test.csv",
+    "audio_config": {"type": "MelSpectrum", "window_type": "hann", "upper_frequency_limit": 12000, "filterbank_channel_count": 80, "lower_frequency_limit": 0, "dither": 0.0, "window_length": 0.04267, "frame_length": 0.01067, "remove_dc_offset": false, "preEph_coeff": 0.0, "output_type": 3, "sample_rate": 24000},
+    "text_config": {"type":"eng_vocab", "model":"examples/tts/libritts/vocab"}
+  }
+}
